@@ -23,12 +23,14 @@ import androidx.navigation.NavHostController
 import androidx.compose.ui.graphics.vector.ImageVector
 import android.speech.tts.TextToSpeech
 import java.util.Locale
+import androidx.compose.material3.Button
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainPage(navController: NavHostController) {
     var showDeveloperInfo by remember { mutableStateOf(false) }
     var isFirstTime by remember { mutableStateOf(true) }
+    var showHelpTutorial by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val tts = remember { mutableStateOf<TextToSpeech?>(null) }
 
@@ -146,11 +148,11 @@ fun MainPage(navController: NavHostController) {
                 audioDescription = "Help and Tutorial. Double tap to activate. Learn how to use DRISHTI effectively.",
                 onClick = { 
                     tts.value?.speak("Opening Help Tutorial", TextToSpeech.QUEUE_FLUSH, null, null)
-                    // TODO: Implement help system 
+                    showHelpTutorial = true
                 },
                 onDoubleClick = {
                     tts.value?.speak("Help Tutorial activated", TextToSpeech.QUEUE_FLUSH, null, null)
-                    // TODO: Implement help system
+                    showHelpTutorial = true
                 }
             )
         }
@@ -243,6 +245,90 @@ fun MainPage(navController: NavHostController) {
                 }
             }
         }
+
+        // Help Tutorial Overlay
+        AnimatedVisibility(
+            visible = showHelpTutorial,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(16.dp)
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "DRISHTI Help & Tutorial",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Text(
+                        text = "Welcome to DRISHTI! Here's how to use your AI vision assistant:",
+                        style = MaterialTheme.typography.bodyLarge,
+                        textAlign = TextAlign.Center
+                    )
+                    
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    HelpSection(
+                        title = "Navigation Mode",
+                        description = "Real-time guidance using your camera. The app describes your surroundings every 3 seconds.",
+                        instructions = "• Point your camera forward\n• Listen to audio descriptions\n• Get obstacle warnings"
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    HelpSection(
+                        title = "Assistant Mode",
+                        description = "Ask questions about your environment or anything else.",
+                        instructions = "• Double tap the top of the screen\n• Ask questions naturally\n• Get detailed answers"
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    HelpSection(
+                        title = "Voice Mode",
+                        description = "Read text from signs, books, or documents.",
+                        instructions = "• Double tap the bottom of the screen\n• Point camera at text\n• Listen to text being read"
+                    )
+                    
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    Text(
+                        text = "Tip: Tap anywhere on the main screen to hear options again!",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Button(
+                        onClick = { 
+                            showHelpTutorial = false
+                            tts.value?.speak("Help tutorial closed. You're ready to use DRISHTI!", TextToSpeech.QUEUE_FLUSH, null, null)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Got it! Let's start!")
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -329,6 +415,47 @@ fun AccessibleFeatureButton(
                     fontWeight = FontWeight.Medium
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun HelpSection(
+    title: String,
+    description: String,
+    instructions: String
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text(
+                text = instructions,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface
+            )
         }
     }
 }

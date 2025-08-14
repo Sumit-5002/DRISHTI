@@ -11,6 +11,8 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
+import android.os.VibrationEffect
+import android.os.Vibrator
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
@@ -21,8 +23,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Book
-import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,11 +32,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -62,7 +65,7 @@ fun BlindModeScreen() {
     var overlayText by remember { mutableStateOf("") }
     val coroutineScope = rememberCoroutineScope()
     var isAssistantMode by remember { mutableStateOf(false) }
-    var sessionStarted by remember { mutableStateOf(true) } // Start session immediately
+    var sessionStarted by remember { mutableStateOf(true) }
     var analysisResult by remember { mutableStateOf("") }
     val tts = remember { mutableStateOf<TextToSpeech?>(null) }
     var lastSpokenIndex by remember { mutableStateOf(0) }
@@ -73,6 +76,8 @@ fun BlindModeScreen() {
     var chatResponse by remember { mutableStateOf("") }
     var isVoiceMode by remember { mutableStateOf(false) }
     var voiceModeResult by remember { mutableStateOf("") }
+    var showInstructions by remember { mutableStateOf(true) }
+    var instructionStep by remember { mutableStateOf(0) }
 
     val speechRecognizer = remember { SpeechRecognizer.createSpeechRecognizer(context) }
     val speechIntent = remember {
@@ -82,14 +87,36 @@ fun BlindModeScreen() {
         }
     }
 
+    // Initialize TTS with better settings for blind users
     LaunchedEffect(context) {
         tts.value = TextToSpeech(context) { status ->
             if (status != TextToSpeech.ERROR) {
                 tts.value?.language = Locale.US
-                tts.value?.setSpeechRate(1.2f) // Slightly reduced speech rate for better clarity
+                tts.value?.setSpeechRate(0.8f) // Slower for clarity
+                tts.value?.setPitch(1.0f) // Normal pitch
             }
         }
     }
+
+    // Welcome and instruction system
+    LaunchedEffect(Unit) {
+        if (tts.value != null) {
+            tts.value?.speak(
+                "Welcome to DRISHTI Navigation Mode. " +
+                "This mode provides real-time guidance using your camera. " +
+                "Tap the top of the screen to pause navigation and ask questions. " +
+                "Tap the bottom to switch to text reading mode. " +
+                "Tap the center to hear current status. " +
+                "Navigation will start automatically in 3 seconds.",
+                TextToSpeech.QUEUE_FLUSH, null, null
+            )
+            
+            // Start navigation after 3 seconds
+            kotlinx.coroutines.delay(3000)
+            tts.value?.speak("Navigation started. I will describe your surroundings every 3 seconds.", TextToSpeech.QUEUE_FLUSH, null, null)
+        }
+    }
+
     DisposableEffect(Unit) {
         onDispose {
             cameraExecutor.shutdown()
@@ -122,13 +149,11 @@ fun BlindModeScreen() {
             override fun onRmsChanged(rmsdB: Float) {}
             override fun onBufferReceived(buffer: ByteArray?) {}
             override fun onEndOfSpeech() {
-                // Restart listening on end of speech, if navigation is paused
                 if (navigationPaused) {
                     speechRecognizer.startListening(speechIntent)
                 }
             }
             override fun onError(error: Int) {
-                // Restart listening on error, if navigation is paused
                 if (navigationPaused) {
                     speechRecognizer.startListening(speechIntent)
                 }
@@ -146,7 +171,6 @@ fun BlindModeScreen() {
         } else {
             isMicActive = false
             speechRecognizer.stopListening()
-            // Clear chatResponse to display the analysis result when resuming navigation
             chatResponse = ""
         }
     }
@@ -159,15 +183,15 @@ fun BlindModeScreen() {
                         capturedImage = bitmap
                         coroutineScope.launch {
                             voiceModeResult = ""
+                            tts.value?.speak("Processing text. Please wait.", TextToSpeech.QUEUE_FLUSH, null, null)
                             sendFrameToGemini2AI(bitmap, { partialResult ->
                                 voiceModeResult += partialResult
                                 tts.value?.speak(partialResult, TextToSpeech.QUEUE_ADD, null, null)
                             }, { error ->
-                                // Handle error
+                                tts.value?.speak("Error processing text. Please try again.", TextToSpeech.QUEUE_FLUSH, null, null)
                             })
                         }
                     },
-
                     cameraExecutor = cameraExecutor
                 )
             } else if (!navigationPaused) {
@@ -183,7 +207,7 @@ fun BlindModeScreen() {
                                     tts.value?.speak(newText, TextToSpeech.QUEUE_ADD, null, null)
                                     lastSpokenIndex = analysisResult.length
                                 }, { error ->
-                                    // Handle error here
+                                    tts.value?.speak("Error analyzing image. Please try again.", TextToSpeech.QUEUE_FLUSH, null, null)
                                 })
                                 lastProcessedTimestamp = currentTimestamp
                             }
@@ -203,56 +227,93 @@ fun BlindModeScreen() {
         )
     }
 
+    // Main UI with simple, accessible controls
     Column(
         modifier = Modifier
             .fillMaxSize()
             .pointerInput(Unit) {
                 detectTapGestures(
-                    onDoubleTap = {
-                        if (!isVoiceMode) {
-                            navigationPaused = !navigationPaused
-                            isAssistantMode = navigationPaused
-                            if (navigationPaused) {
-                                tts.value?.stop()
-                                currentMode = "assistant"
-                                overlayText = ""
-                                tts.value?.speak("Assistant mode activated.", TextToSpeech.QUEUE_FLUSH, null, null)
-                            } else {
-                                tts.value?.stop()
-                                currentMode = "navigation"
-                                overlayText = ""
-                                chatResponse = ""
-                                tts.value?.speak("Assistant mode deactivated.", TextToSpeech.QUEUE_FLUSH, null, null)
+                    onTap = { offset ->
+                        val screenHeight = size.height
+                        val y = offset.y
+                        
+                        when {
+                            y < screenHeight * 0.33 -> {
+                                // Top third - Toggle Assistant Mode
+                                if (!isVoiceMode) {
+                                    navigationPaused = !navigationPaused
+                                    isAssistantMode = navigationPaused
+                                    
+                                    // Haptic feedback
+                                    val vibrator = context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as Vibrator
+                                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                        vibrator.vibrate(VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE))
+                                    } else {
+                                        @Suppress("DEPRECATION")
+                                        vibrator.vibrate(100)
+                                    }
+                                    
+                                    if (navigationPaused) {
+                                        tts.value?.stop()
+                                        currentMode = "assistant"
+                                        overlayText = ""
+                                        tts.value?.speak("Assistant mode activated. Ask me anything about your environment.", TextToSpeech.QUEUE_FLUSH, null, null)
+                                    } else {
+                                        tts.value?.stop()
+                                        currentMode = "navigation"
+                                        overlayText = ""
+                                        chatResponse = ""
+                                        tts.value?.speak("Assistant mode deactivated. Navigation resumed.", TextToSpeech.QUEUE_FLUSH, null, null)
+                                    }
+                                }
                             }
-                        }
-                    },
-                    onLongPress = {
-                        if (!isAssistantMode) {
-                            isVoiceMode = !isVoiceMode
-                            if (isVoiceMode) {
-                                tts.value?.stop()
-                                currentMode = "voice"
-                                overlayText = ""
-                                navigationPaused = true
-                                tts.value?.speak("Entering voice mode", TextToSpeech.QUEUE_FLUSH, null, null)
-                            } else {
-                                tts.value?.stop()
-                                currentMode = "navigation"
-                                overlayText = ""
-                                voiceModeResult = ""
-                                navigationPaused = false
-                                tts.value?.speak("Exiting voice mode", TextToSpeech.QUEUE_FLUSH, null, null)
+                            y > screenHeight * 0.66 -> {
+                                // Bottom third - Toggle Voice Mode
+                                if (!isAssistantMode) {
+                                    isVoiceMode = !isVoiceMode
+                                    
+                                    // Haptic feedback
+                                    val vibrator = context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as Vibrator
+                                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                        vibrator.vibrate(VibrationEffect.createOneShot(200, VibrationEffect.DEFAULT_AMPLITUDE))
+                                    } else {
+                                        @Suppress("DEPRECATION")
+                                        vibrator.vibrate(200)
+                                    }
+                                    
+                                    if (isVoiceMode) {
+                                        tts.value?.stop()
+                                        currentMode = "voice"
+                                        overlayText = ""
+                                        navigationPaused = true
+                                        tts.value?.speak("Voice mode activated. Point your camera at text to read it.", TextToSpeech.QUEUE_FLUSH, null, null)
+                                    } else {
+                                        tts.value?.stop()
+                                        currentMode = "navigation"
+                                        overlayText = ""
+                                        voiceModeResult = ""
+                                        navigationPaused = false
+                                        tts.value?.speak("Voice mode deactivated. Navigation resumed.", TextToSpeech.QUEUE_FLUSH, null, null)
+                                    }
+                                }
                             }
-                        } else {
-                            // Exit assistant mode and enter navigation mode
-                            tts.value?.stop()
-                            isAssistantMode = false
-                            navigationPaused = false
-                            isVoiceMode = false
-                            currentMode = "navigation"
-                            overlayText = ""
-                            chatResponse = ""
-                            tts.value?.speak("Exiting assistant mode, entering navigation mode", TextToSpeech.QUEUE_FLUSH, null, null)
+                            else -> {
+                                // Middle third - Status and instructions
+                                val vibrator = context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as Vibrator
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                    vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
+                                } else {
+                                    @Suppress("DEPRECATION")
+                                    vibrator.vibrate(50)
+                                }
+                                
+                                tts.value?.speak(
+                                    "Current mode: $currentMode. " +
+                                    "Top tap: Assistant mode. Bottom tap: Voice mode. " +
+                                    "Navigation is ${if (navigationPaused) "paused" else "active"}.",
+                                    TextToSpeech.QUEUE_FLUSH, null, null
+                                )
+                            }
                         }
                     }
                 )
@@ -272,22 +333,71 @@ fun BlindModeScreen() {
                     lastSpokenIndex = lastSpokenIndex
                 )
             }
-            Icon(
-                imageVector = Icons.Filled.Book,
-                contentDescription = "Book Icon",
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .size(64.dp),
-                tint = if (isVoiceMode) Color.Green else Color(0xFFB0B1B1)
-            )
-            Icon(
-                imageVector = Icons.Filled.Mic,
-                contentDescription = "Mic Icon",
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .size(64.dp),
-                tint = if (isMicActive) Color.Green else Color(0xFFB0B1B1)
-            )
+            
+            // Simple visual indicators (minimal for blind users)
+            if (isVoiceMode) {
+                Icon(
+                    imageVector = Icons.Filled.Book,
+                    contentDescription = "Voice Mode Active",
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .size(48.dp),
+                    tint = Color.Green
+                )
+            }
+            
+            if (isMicActive) {
+                Icon(
+                    imageVector = Icons.Filled.Mic,
+                    contentDescription = "Microphone Active",
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .size(48.dp),
+                    tint = Color.Green
+                )
+            }
+            
+            // Instructions overlay
+            if (showInstructions) {
+                Card(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "DRISHTI Navigation Controls",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "• Tap TOP: Assistant Mode (ask questions)",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Text(
+                            text = "• Tap CENTER: Status & Instructions",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Text(
+                            text = "• Tap BOTTOM: Voice Mode (read text)",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        TextButton(
+                            onClick = { showInstructions = false }
+                        ) {
+                            Text("Got it!")
+                        }
+                    }
+                }
+            }
         }
     }
 }
