@@ -10,6 +10,6 @@ fun Navigation(navController: NavHostController) {
     NavHost(navController = navController, startDestination = "mainPage") {
         composable("mainPage") { MainPage(navController) }
         composable("blindMode") { BlindModeScreen() }
-        composable("voiceAssistant") { VoiceAssistantScreen() }
+        composable("readingMode") { ReadingModeScreen() }
     }
 }

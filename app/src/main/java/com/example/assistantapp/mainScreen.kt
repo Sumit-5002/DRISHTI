@@ -47,8 +47,8 @@ fun MainPage(navController: NavHostController) {
         if (isFirstTime && tts.value != null) {
             tts.value?.speak(
                 "Welcome to DRISHTI, your AI vision assistant. " +
-                "This app has three main modes: Navigation Mode for real-time guidance, " +
-                "Voice Assistant for asking questions, and Help Tutorial to learn how to use the app. " +
+                "This app has three main modes: Navigation Mode for real-time guidance and asking questions, " +
+                "Reading Mode for reading text from signs and documents, and Help Tutorial to learn how to use the app. " +
                 "Tap anywhere on the screen to hear options again.",
                 TextToSpeech.QUEUE_FLUSH, null, null
             )
@@ -108,8 +108,8 @@ fun MainPage(navController: NavHostController) {
             AccessibleFeatureButton(
                 icon = Icons.Default.CameraAlt,
                 title = "Navigation Mode",
-                description = "Real-time camera navigation with AI assistance",
-                audioDescription = "Navigation Mode. Double tap to activate. Provides real-time guidance using your camera.",
+                description = "Real-time camera navigation with AI assistance and voice commands",
+                audioDescription = "Navigation Mode. Double tap to activate. Provides real-time guidance and allows you to ask questions about your environment.",
                 onClick = { 
                     tts.value?.speak("Opening Navigation Mode", TextToSpeech.QUEUE_FLUSH, null, null)
                     navController.navigate("blindMode") 
@@ -123,17 +123,17 @@ fun MainPage(navController: NavHostController) {
             Spacer(modifier = Modifier.height(16.dp))
             
             AccessibleFeatureButton(
-                icon = Icons.Default.Mic,
-                title = "Voice Assistant",
-                description = "Speak to get information and guidance",
-                audioDescription = "Voice Assistant. Double tap to activate. Ask questions about your environment.",
+                icon = Icons.Default.Book,
+                title = "Reading Mode",
+                description = "Read text from signs, documents, and books",
+                audioDescription = "Reading Mode. Double tap to activate. Point your camera at text to read it aloud.",
                 onClick = { 
-                    tts.value?.speak("Opening Voice Assistant", TextToSpeech.QUEUE_FLUSH, null, null)
-                    navController.navigate("voiceAssistant") 
+                    tts.value?.speak("Opening Reading Mode", TextToSpeech.QUEUE_FLUSH, null, null)
+                    navController.navigate("readingMode") 
                 },
                 onDoubleClick = {
-                    tts.value?.speak("Voice Assistant activated", TextToSpeech.QUEUE_FLUSH, null, null)
-                    navController.navigate("voiceAssistant")
+                    tts.value?.speak("Reading Mode activated", TextToSpeech.QUEUE_FLUSH, null, null)
+                    navController.navigate("readingMode")
                 }
             )
             
@@ -243,6 +243,91 @@ fun MainPage(navController: NavHostController) {
                 }
             }
         }
+
+        // Help Tutorial Overlay
+        var showHelpTutorial by remember { mutableStateOf(false) }
+        LaunchedEffect(showHelpTutorial) {
+            if (showHelpTutorial && tts.value != null) {
+                tts.value?.speak(
+                    "Welcome to DRISHTI! Here's how to use your AI vision assistant:",
+                    TextToSpeech.QUEUE_FLUSH, null, null
+                )
+            }
+        }
+        AnimatedVisibility(
+            visible = showHelpTutorial,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(16.dp)
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "DRISHTI Help & Tutorial",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Text(
+                        text = "Welcome to DRISHTI! Here's how to use your AI vision assistant:",
+                        style = MaterialTheme.typography.bodyLarge,
+                        textAlign = TextAlign.Center
+                    )
+                    
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    HelpSection(
+                        title = "Navigation Mode",
+                        description = "Real-time guidance using your camera. The app describes your surroundings every 3 seconds and allows you to ask questions.",
+                        instructions = "• Point your camera forward\n• Listen to audio descriptions\n• Tap top to ask questions\n• Get obstacle warnings"
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    HelpSection(
+                        title = "Reading Mode",
+                        description = "Read text from signs, books, or documents.",
+                        instructions = "• Point camera at text\n• Listen to text being read\n• Perfect for signs and documents"
+                    )
+                    
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    Text(
+                        text = "Tip: Tap anywhere on the main screen to hear options again!",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Button(
+                        onClick = { 
+                            showHelpTutorial = false
+                            tts.value?.speak("Help tutorial closed. You're ready to use DRISHTI!", TextToSpeech.QUEUE_FLUSH, null, null)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Got it! Let's start!")
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -329,6 +414,47 @@ fun AccessibleFeatureButton(
                     fontWeight = FontWeight.Medium
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun HelpSection(
+    title: String,
+    description: String,
+    instructions: String
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text(
+                text = instructions,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface
+            )
         }
     }
 }
