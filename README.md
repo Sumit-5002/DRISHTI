@@ -232,8 +232,8 @@ This project is developed for academic purposes at VIT Bhopal. Please respect th
 ## 📞 Contact Information
 
 **Group 36 - VIT Bhopal**
-- **Email**: group36.vitbhopal@gmail.com
-- **GitHub**: [Project Repository](https://github.com/your-username/drishti-blind-assistant)
+- **Email**: sumit.24bce11520@vitbhopal.ac.in
+- **GitHub**: [Project Repository](https://github.com/Sumit-5002/DRISHTI)
 - **Institution**: Vellore Institute of Technology, Bhopal Campus
 - **Location**: Bhopal, Madhya Pradesh, India
 
